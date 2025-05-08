@@ -1,7 +1,6 @@
 package com.devteria.cinemawebsite.api.booking.service;
 
 import com.devteria.cinemawebsite.api.booking.dto.request.BookingRequest;
-import com.devteria.cinemawebsite.api.booking.dto.response.BookingResponse;
 import com.devteria.cinemawebsite.api.booking.dto.response.SeatResponse;
 import com.devteria.cinemawebsite.api.booking.entity.*;
 import com.devteria.cinemawebsite.api.booking.mapper.BookingMapper;
@@ -12,6 +11,8 @@ import com.devteria.cinemawebsite.api.booking.repository.BookingRepository;
 import com.devteria.cinemawebsite.api.booking.repository.ComboRepository;
 import com.devteria.cinemawebsite.api.booking.repository.SeatRepository;
 import com.devteria.cinemawebsite.api.booking.repository.TicketRepository;
+import com.devteria.cinemawebsite.api.payment.dto.response.PaymentResponse;
+import com.devteria.cinemawebsite.api.payment.service.PaymentService;
 import com.devteria.cinemawebsite.api.showtime.entity.Showtime;
 import com.devteria.cinemawebsite.api.showtime.repository.ShowtimeRepository;
 import com.devteria.cinemawebsite.api.user.entity.User;
@@ -43,7 +44,7 @@ public class BookingService {
     SeatRepository seatRepository;
     ComboRepository comboRepository;
     TicketRepository ticketRepository;
-
+    PaymentService paymentService;
 
     TicketMapper ticketMapper;
     BookingMapper bookingMapper;
@@ -51,7 +52,7 @@ public class BookingService {
     SeatMapper seatMapper;
 
     @Transactional
-    public BookingResponse createBooking(String userId, BookingRequest request) {
+    public PaymentResponse createBooking(String userId, BookingRequest request) {
         // 1. Validate input
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
@@ -106,16 +107,29 @@ public class BookingService {
                 .totalAmount(totalPrice)
                 .status(BookingStatus.PENDING)
                 .bookingTime(LocalDateTime.now())
+                .bookingCode(generateBookingCode())
                 .build();
 
         // 6. Set bidirectional relationships
         tickets.forEach(ticket -> ticket.setBooking(booking));
         orderItems.forEach(orderItem -> orderItem.setBooking(booking));
         try {
-            return bookingMapper.toBookingResponse(bookingRepository.save(booking));
+            Booking savedBooking = bookingRepository.save(booking);
+            PaymentResponse paymentResponse = paymentService.createPayment(savedBooking.getId(), userId);
+            return paymentResponse;
         } catch (DataIntegrityViolationException e) {
             throw new AppException(ErrorCode.SEAT_ALREADY_BOOKED);
         }
+    }
+
+    public String generateBookingCode() {
+        StringBuilder bookingCode = new StringBuilder();
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        for (int i = 0; i < 8; i++) {
+            int index = (int) (Math.random() * characters.length());
+            bookingCode.append(characters.charAt(index));
+        }
+        return bookingCode.toString();
     }
 
     public List<SeatResponse> getSeats(Long showtimeId) {

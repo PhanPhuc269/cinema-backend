@@ -1,11 +1,11 @@
 package com.devteria.cinemawebsite.api.booking;
 
 import com.devteria.cinemawebsite.api.booking.dto.request.BookingRequest;
-import com.devteria.cinemawebsite.api.booking.dto.response.BookingResponse;
 import com.devteria.cinemawebsite.api.booking.dto.response.SeatResponse;
 import com.devteria.cinemawebsite.api.booking.dto.response.TicketTypeResponse;
 import com.devteria.cinemawebsite.api.booking.service.BookingService;
 import com.devteria.cinemawebsite.api.booking.service.TicketTypeService;
+import com.devteria.cinemawebsite.api.payment.dto.response.PaymentResponse;
 import com.devteria.cinemawebsite.base.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +27,13 @@ public class BookingController {
     TicketTypeService  ticketTypeService;
 
     @PostMapping
-    BookingResponse createBooking(@RequestBody BookingRequest bookingRequest) {
+    ApiResponse<PaymentResponse> createBooking(@RequestBody BookingRequest bookingRequest) {
         Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String userId = jwt.getClaimAsString("userId"); // nếu token dùng "sub" để chứa user ID
 
-        return bookingService.createBooking(userId, bookingRequest);
+        return ApiResponse.<PaymentResponse>builder()
+                .result(bookingService.createBooking(userId, bookingRequest))
+                .build();
     }
 
     @GetMapping("/ticket-type")

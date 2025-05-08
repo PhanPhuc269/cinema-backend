@@ -5,13 +5,11 @@ import com.devteria.cinemawebsite.api.payment.dto.request.PaymentRequest;
 import com.devteria.cinemawebsite.api.payment.dto.response.PaymentResponse;
 import com.devteria.cinemawebsite.api.payment.service.PaymentService;
 import com.devteria.cinemawebsite.base.ApiResponse;
-import com.devteria.cinemawebsite.enums.PaymentStatus;
 import com.nimbusds.jose.JOSEException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,14 +42,12 @@ public class PaymentController {
 
     // Xử lý thanh toán cho giao dịch
     @PostMapping("/process")
-    public ResponseEntity<PaymentResponse> processPayment(
+    public ApiResponse<PaymentResponse> processPayment(
             @RequestBody PaymentProcessRequest request) {
         PaymentResponse response = paymentService.processPayment(request.getPaymentId());
-        if (response.getStatus()== PaymentStatus.COMPLETED) {
-            return ResponseEntity.ok(response);
-        } else {
-            return ResponseEntity.badRequest().body(response);
-        }
+        return ApiResponse.<PaymentResponse>builder()
+                .result(response)
+                .build();
     }
 //
 //    // Hủy giao dịch

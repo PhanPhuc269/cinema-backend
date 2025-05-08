@@ -24,4 +24,5 @@ public class BookingResponse {
     private String status;
     private String promotionCode;
     private String note;
+    String bookingCode;
 }

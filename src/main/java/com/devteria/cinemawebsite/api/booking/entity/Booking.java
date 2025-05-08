@@ -41,5 +41,6 @@ public class Booking {
     private BookingStatus status = BookingStatus.PENDING;
 
     private String promotionCode;
+    String bookingCode;
     private String note;
 }

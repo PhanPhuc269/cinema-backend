@@ -1,8 +1,8 @@
-# Identity service
+# Cinema Booking Service
 This microservice is responsible for:
-* Onboarding users
-* Roles and permissions
-* Authentication
+* User onboarding
+* Managing roles and permissions
+* Booking tickets and managing showtimes
 
 ## Tech stack
 * Build tool: maven >= 3.9.5

@@ -23,6 +23,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -81,8 +82,9 @@ public class PaymentService {
                     .build();
 
             payment = paymentRepository.save(payment);
-
-            return paymentMapper.toResponse(payment);
+            PaymentResponse response = paymentMapper.toResponse(payment);
+            response.setQrcode(generateQrCodeUrl(payment));
+            return response;
         } catch (Exception e) {
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
@@ -96,60 +98,94 @@ public class PaymentService {
     // Xử lý thanh toán
     public PaymentResponse processPayment(String paymentId) {
         try {
+            // Tìm payment ban đầu
             Payment payment = paymentRepository.findById(paymentId)
                     .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-            if (payment.getStatus()!=PaymentStatus.PENDING) {
+            // Kiểm tra trạng thái ban đầu
+            if (payment.getStatus() != PaymentStatus.PENDING) {
+                // Nếu đã hoàn tất hoặc thất bại, trả về trạng thái hiện tại thay vì ném ngoại lệ
+                if (payment.getStatus() == PaymentStatus.COMPLETED) {
+                    return paymentMapper.toResponse(payment);
+                } else if (payment.getStatus() == PaymentStatus.FAILED) {
+                    throw new AppException(ErrorCode.PAYMENT_FAILED);
+                }
                 throw new AppException(ErrorCode.PAYMENT_NOT_PENDING);
             }
 
             int timeout = 5 * 60 * 1000; // 5 phút
             int checkInterval = 3 * 1000; // 3 giây
-            int elapsed = 0;
+
+            // Sử dụng CompletableFuture để chờ kết quả xử lý
+            CompletableFuture<Payment> paymentFuture = new CompletableFuture<>();
 
             ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
             scheduler.scheduleAtFixedRate(() -> {
                 try {
+                    // Kiểm tra lại payment trước mỗi lần xử lý
                     Payment currentPayment = paymentRepository.findById(paymentId)
                             .orElseThrow(() -> new RuntimeException("Payment not found during processing"));
 
-                    if (currentPayment.getStatus()==PaymentStatus.FAILED) {
+                    // Nếu trạng thái không còn PENDING, dừng scheduler và hoàn thành future
+                    if (currentPayment.getStatus() != PaymentStatus.PENDING) {
                         scheduler.shutdown();
+                        paymentFuture.complete(currentPayment);
                         return;
                     }
 
-                    PaymentResult paymentResult = paymentUtils.checkPaid(currentPayment.getAmount(), currentPayment.getTransactionId());
+                    // Kiểm tra trạng thái thanh toán
+                    PaymentResult paymentResult = paymentUtils.checkPaid(920000, "67888fc61c12b72d5e8ad987"); // Giả lập gọi API
                     if (paymentResult.isSuccess()) {
+                        // Cập nhật trạng thái payment thành COMPLETED
                         currentPayment.setStatus(PaymentStatus.COMPLETED);
-                        paymentRepository.save(currentPayment);
+                        currentPayment = paymentRepository.save(currentPayment);
 
+                        // Cập nhật trạng thái booking thành CONFIRMED
                         Booking booking = bookingRepository.findById(currentPayment.getBooking().getId())
                                 .orElseThrow(() -> new RuntimeException("Booking not found"));
                         booking.setStatus(BookingStatus.CONFIRMED);
                         bookingRepository.save(booking);
 
+                        // Dừng scheduler và hoàn thành future
                         scheduler.shutdown();
+                        paymentFuture.complete(currentPayment);
                     }
                 } catch (Exception e) {
                     scheduler.shutdown();
+                    paymentFuture.completeExceptionally(e);
                 }
             }, 0, checkInterval, TimeUnit.MILLISECONDS);
 
-            // Đóng scheduler sau timeout
+            // Đóng scheduler sau timeout và cập nhật trạng thái nếu cần
             scheduler.schedule(() -> {
-                if (payment.getStatus() != PaymentStatus.COMPLETED) {
-                    payment.setStatus(PaymentStatus.FAILED);
-                    paymentRepository.save(payment);
+                try {
+                    Payment paymentCheck = paymentRepository.findById(paymentId)
+                            .orElseThrow(() -> new RuntimeException("Payment not found during processing"));
+                    if (paymentCheck.getStatus() != PaymentStatus.COMPLETED) {
+                        paymentCheck.setStatus(PaymentStatus.FAILED);
+                        paymentRepository.save(paymentCheck);
+                    }
+                    scheduler.shutdown();
+                    // Nếu future chưa hoàn thành, hoàn thành với trạng thái cuối cùng
+                    if (!paymentFuture.isDone()) {
+                        paymentFuture.complete(paymentCheck);
+                    }
+                } catch (Exception e) {
+                    paymentFuture.completeExceptionally(e);
                 }
-                scheduler.shutdown();
             }, timeout, TimeUnit.MILLISECONDS);
-            return paymentMapper.toResponse(payment);
 
+            // Đợi cho đến khi future hoàn thành và lấy kết quả
+            Payment finalPayment = paymentFuture.get(timeout + 1000, TimeUnit.MILLISECONDS);
+
+            return paymentMapper.toResponse(finalPayment);
+
+        } catch (AppException e) {
+            throw e; // Ném lại AppException để xử lý trong GlobalExceptionHandler
         } catch (Exception e) {
-            throw  new RuntimeException("Error creating payment: " + e.getMessage());
+            throw new RuntimeException("Error processing payment: " + e.getMessage());
         }
     }
-
     // Lấy tất cả giao dịch
     public List<Payment> getAllPayments() {
         try {

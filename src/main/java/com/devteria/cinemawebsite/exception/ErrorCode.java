@@ -30,6 +30,7 @@ public enum ErrorCode {
     PAYMENT_ALREADY_FAILED(1020, "Payment already failed", HttpStatus.BAD_REQUEST),
     PAYMENT_CANCELLATION_FAILED(1021, "Payment cancellation failed", HttpStatus.BAD_REQUEST),
     INVALID_PAYMENT_AMOUNT(1022, "Invalid payment amount", HttpStatus.BAD_REQUEST),
+    PAYMENT_FAILED(1023, "Payment failed", HttpStatus.BAD_REQUEST),
     ;
 
     ErrorCode(int code, String message, HttpStatusCode statusCode) {

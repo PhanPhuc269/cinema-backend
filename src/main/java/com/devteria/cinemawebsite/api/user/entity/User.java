@@ -29,6 +29,6 @@ public class User {
     @Column(unique = true)
     String phone;
     LocalDate dob;
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     Set<Role> roles;
 }

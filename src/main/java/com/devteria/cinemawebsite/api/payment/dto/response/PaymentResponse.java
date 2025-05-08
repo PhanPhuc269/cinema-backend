@@ -27,4 +27,6 @@ public class PaymentResponse {
     LocalDateTime paymentTime;
 
     String transactionId; // Optional: for tracking payment transactions
+
+    String qrcode;
 }

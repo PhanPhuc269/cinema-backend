@@ -16,6 +16,7 @@ public interface BookingMapper {
     @Mapping(target = "showtime", source = "showtime") // Sử dụng ShowtimeMapper
     @Mapping(target = "tickets", source = "tickets") // Sử dụng TicketMapper
     @Mapping(target = "orderItems", source = "orderItems") // Sử dụng OrderItemMapper
+    @Mapping(target = "bookingCode", source = "bookingCode") // Sử dụng OrderItemMapper
     BookingResponse toBookingResponse(Booking booking);
 
     void updateBooking(@MappingTarget Booking booking, BookingRequest request);
